@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <title>WeatherSphere | Real-time Weather & Maps</title>
+    <meta name="description" content="Real-time weather forecasts with interactive maps and detailed atmospheric data">
+    <meta name="theme-color" content="#1a2980">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Apple Touch Icons -->
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icons/icon-167.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="icons/favicon-32x32.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="icons/favicon-16x16.png" sizes="16x16">
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registered:', registration);
+                    })
+                    .catch(error => {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Mobile Navigation Overlay -->
+    <div class="mobile-nav-overlay" id="mobileNavOverlay"></div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav" id="mobileNav">
+        <button class="mobile-nav-btn active" data-target="weather">
+            <i class="fas fa-cloud-sun"></i>
+            <span>Weather</span>
+        </button>
+        <button class="mobile-nav-btn" data-target="map">
+            <i class="fas fa-map"></i>
+            <span>Map</span>
+        </button>
+        <button class="mobile-nav-btn" data-target="forecast">
+            <i class="fas fa-chart-line"></i>
+            <span>Forecast</span>
+        </button>
+        <button class="mobile-nav-btn" data-target="search">
+            <i class="fas fa-search"></i>
+            <span>Search</span>
+        </button>
+        <button class="mobile-nav-btn" data-target="menu">
+            <i class="fas fa-bars"></i>
+            <span>Menu</span>
+        </button>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-header">
+            <h3>WeatherSphere</h3>
+            <button class="mobile-menu-close" id="mobileMenuClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-menu-content">
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-cog"></i>
+                Settings
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-bell"></i>
+                Notifications
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-heart"></i>
+                Favorites
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-history"></i>
+                History
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-moon"></i>
+                Dark Mode
+                <div class="toggle-switch">
+                    <input type="checkbox" id="darkModeToggle">
+                    <label for="darkModeToggle"></label>
+                </div>
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-ruler"></i>
+                Units
+                <span class="menu-badge">°C</span>
+            </a>
+            <div class="mobile-menu-divider"></div>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-question-circle"></i>
+                Help & Support
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-info-circle"></i>
+                About
+            </a>
+            <a href="#" class="mobile-menu-item">
+                <i class="fas fa-share-alt"></i>
+                Share App
+            </a>
+        </div>
+    </div>
+
+    <!-- Top Bar (Mobile) -->
+    <div class="top-bar">
+        <button class="menu-toggle" id="menuToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="top-bar-title">
+            <div class="app-logo">
+                <i class="fas fa-globe-americas"></i>
+                <span>WeatherSphere</span>
+            </div>
+            <div class="location-indicator" id="mobileLocation">
+                <i class="fas fa-location-dot"></i>
+                <span>Loading...</span>
+            </div>
+        </div>
+
+        <button class="theme-toggle" id="themeToggle">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="app-container">
+        <!-- Desktop Header -->
+        <header class="app-header desktop-header">
+            <div class="logo-container">
+                <div class="logo">
+                    <i class="fas fa-globe-americas"></i>
+                    <div class="logo-text">
+                        <h1>WeatherSphere</h1>
+                        <p>Real-time Atmospheric Intelligence</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="current-time" id="currentTime">
+                    <i class="fas fa-clock"></i>
+                    <span>--:--:--</span>
+                </div>
+
+                <div class="weather-alert" id="weatherAlert">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>No alerts</span>
+                </div>
+
+                <button class="btn btn-icon" id="refreshBtn">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+
+                <button class="btn btn-icon" id="desktopThemeToggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="main-grid">
+            <!-- Section 1: Search & Location (Mobile First) -->
+            <section class="card search-section" id="searchSection">
+                <div class="card-header">
+                    <h2><i class="fas fa-search-location"></i> Location Search</h2>
+                    <button class="btn btn-sm" id="useLocationBtn">
+                        <i class="fas fa-location-crosshairs"></i> Use My Location
+                    </button>
+                </div>
+
+                <div class="search-input-group">
+                    <div class="input-wrapper">
+                        <i class="fas fa-city"></i>
+                        <input type="text" id="cityInput" placeholder="Enter city name or zip code..."
+                            autocomplete="off" aria-label="City search input">
+                        <button class="btn btn-primary search-btn" id="searchBtn">
+                            <i class="fas fa-search"></i>
+                            <span class="btn-text">Search</span>
+                        </button>
+                    </div>
+
+                    <div class="quick-locations">
+                        <button class="quick-location" data-city="New York">
+                            <i class="fas fa-building"></i> NYC
+                        </button>
+                        <button class="quick-location" data-city="London">
+                            <i class="fas fa-landmark"></i> London
+                        </button>
+                        <button class="quick-location" data-city="Tokyo">
+                            <i class="fas fa-torii-gate"></i> Tokyo
+                        </button>
+                        <button class="quick-location" data-city="Sydney">
+                            <i class="fas fa-sun"></i> Sydney
+                        </button>
+                    </div>
+                </div>
+
+                <div class="recent-searches">
+                    <h3><i class="fas fa-history"></i> Recent Searches</h3>
+                    <div class="recent-list" id="recentSearches">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Current Weather (Main Card) -->
+            <section class="card weather-card main-weather" id="weatherSection">
+                <div class="weather-header">
+                    <div class="location-display">
+                        <h2 id="currentLocation">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Select a location</span>
+                        </h2>
+                        <div class="location-meta">
+                            <span id="currentDate">-- --, ----</span>
+                            <span class="separator">•</span>
+                            <span id="currentTime">--:-- --</span>
+                        </div>
+                    </div>
+
+                    <div class="weather-actions">
+                        <div class="unit-toggle">
+                            <button class="unit-btn active" data-unit="celsius">°C</button>
+                            <button class="unit-btn" data-unit="fahrenheit">°F</button>
+                        </div>
+                        <button class="btn btn-icon favorite-btn" id="favoriteBtn">
+                            <i class="far fa-heart"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="weather-main">
+                    <div class="temperature-display">
+                        <div class="temp-value" id="currentTemp">--</div>
+                        <div class="temp-unit">°C</div>
+                    </div>
+
+                    <div class="weather-condition">
+                        <div class="condition-icon" id="weatherIcon">
+                            <i class="fas fa-sun"></i>
+                        </div>
+                        <div class="condition-text">
+                            <div class="condition" id="currentCondition">-- --</div>
+                            <div class="feels-like">
+                                Feels like <span id="feelsLikeTemp">--°</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weather Details Grid -->
+                <div class="weather-details-grid">
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-wind"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">Wind</div>
+                            <div class="detail-value" id="windSpeed">-- km/h</div>
+                            <div class="detail-sub" id="windDirection">-- °</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-tint"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">Humidity</div>
+                            <div class="detail-value" id="humidity">-- %</div>
+                            <div class="detail-sub">Comfort level</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-cloud-rain"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">Precipitation</div>
+                            <div class="detail-value" id="precipitation">-- mm</div>
+                            <div class="detail-sub">Last hour</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-eye"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">Visibility</div>
+                            <div class="detail-value" id="visibility">-- km</div>
+                            <div class="detail-sub">Clear</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-temperature-high"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">Pressure</div>
+                            <div class="detail-value" id="pressure">-- hPa</div>
+                            <div class="detail-sub">Steady</div>
+                        </div>
+                    </div>
+
+                    <div class="detail-card">
+                        <div class="detail-icon">
+                            <i class="fas fa-sun"></i>
+                        </div>
+                        <div class="detail-info">
+                            <div class="detail-label">UV Index</div>
+                            <div class="detail-value" id="uvIndex">--</div>
+                            <div class="detail-sub uv-level">Low</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Interactive Map -->
+            <section class="card map-section" id="mapSection">
+                <div class="card-header">
+                    <h2><i class="fas fa-map"></i> Interactive Weather Map</h2>
+                    <div class="map-controls">
+                        <button class="btn btn-icon btn-sm" id="mapZoomIn">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="btn btn-icon btn-sm" id="mapZoomOut">
+                            <i class="fas fa-minus"></i>
+                        </button>
+                        <button class="btn btn-icon btn-sm" id="mapLocate">
+                            <i class="fas fa-location-arrow"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="map-container" id="map">
+                    <!-- Leaflet map will be inserted here -->
+                </div>
+
+                <div class="map-overlay">
+                    <div class="map-coordinates">
+                        <span>Lat: <span id="mapLat">0.0000</span></span>
+                        <span>Lon: <span id="mapLon">0.0000</span></span>
+                    </div>
+                    <div class="map-legend">
+                        <div class="legend-item">
+                            <div class="legend-color temp-hot"></div>
+                            <span>Hot</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color temp-warm"></div>
+                            <span>Warm</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color temp-cool"></div>
+                            <span>Cool</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 4: Hourly Forecast -->
+            <section class="card hourly-section" id="hourlySection">
+                <div class="card-header">
+                    <h2><i class="fas fa-hourglass-half"></i> 24-Hour Forecast</h2>
+                    <button class="btn btn-text" id="viewAllHours">
+                        View All <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="hourly-scroll-container">
+                    <div class="hourly-scroll" id="hourlyForecast">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5: 7-Day Forecast -->
+            <section class="card forecast-section" id="forecastSection">
+                <div class="card-header">
+                    <h2><i class="fas fa-calendar-alt"></i> 7-Day Forecast</h2>
+                </div>
+
+                <div class="forecast-list" id="weeklyForecast">
+                    <!-- Filled by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Section 6: Air Quality & Sun Times -->
+            <section class="card air-quality-section" id="airQualitySection">
+                <div class="card-header">
+                    <h2><i class="fas fa-wind"></i> Air Quality</h2>
+                    <div class="aqi-badge" id="aqiBadge">
+                        <span class="aqi-value">--</span>
+                        <span class="aqi-label">AQI</span>
+                    </div>
+                </div>
+
+                <div class="aqi-details">
+                    <div class="aqi-scale">
+                        <div class="scale-bar">
+                            <div class="scale-segment good"></div>
+                            <div class="scale-segment moderate"></div>
+                            <div class="scale-segment unhealthy"></div>
+                            <div class="scale-segment very-unhealthy"></div>
+                            <div class="scale-segment hazardous"></div>
+                        </div>
+                        <div class="scale-labels">
+                            <span>Good</span>
+                            <span>Moderate</span>
+                            <span>Unhealthy</span>
+                            <span>Very Unhealthy</span>
+                            <span>Hazardous</span>
+                        </div>
+                    </div>
+
+                    <div class="pollutants-grid">
+                        <div class="pollutant">
+                            <div class="pollutant-name">PM2.5</div>
+                            <div class="pollutant-value" id="pm25">-- μg/m³</div>
+                            <div class="pollutant-bar"></div>
+                        </div>
+                        <div class="pollutant">
+                            <div class="pollutant-name">PM10</div>
+                            <div class="pollutant-value" id="pm10">-- μg/m³</div>
+                            <div class="pollutant-bar"></div>
+                        </div>
+                        <div class="pollutant">
+                            <div class="pollutant-name">O₃</div>
+                            <div class="pollutant-value" id="o3">-- ppb</div>
+                            <div class="pollutant-bar"></div>
+                        </div>
+                        <div class="pollutant">
+                            <div class="pollutant-name">NO₂</div>
+                            <div class="pollutant-value" id="no2">-- ppb</div>
+                            <div class="pollutant-bar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sun-times">
+                    <div class="sun-time sunrise">
+                        <i class="fas fa-sunrise"></i>
+                        <div class="sun-time-info">
+                            <div class="sun-time-label">Sunrise</div>
+                            <div class="sun-time-value" id="sunriseTime">--:-- AM</div>
+                        </div>
+                    </div>
+                    <div class="sun-time sunset">
+                        <i class="fas fa-sunset"></i>
+                        <div class="sun-time-info">
+                            <div class="sun-time-label">Sunset</div>
+                            <div class="sun-time-value" id="sunsetTime">--:-- PM</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 7: Weather Alerts -->
+            <section class="card alerts-section" id="alertsSection">
+                <div class="card-header">
+                    <h2><i class="fas fa-exclamation-triangle"></i> Weather Alerts</h2>
+                    <div class="alert-indicator" id="alertIndicator">
+                        <div class="alert-dot"></div>
+                        <span>No alerts</span>
+                    </div>
+                </div>
+
+                <div class="alerts-container" id="alertsContainer">
+                    <div class="alert-placeholder">
+                        <i class="fas fa-check-circle"></i>
+                        <p>No weather alerts for your location</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Desktop Footer -->
+        <footer class="app-footer desktop-footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <div class="app-logo">
+                        <i class="fas fa-globe-americas"></i>
+                        <span>WeatherSphere</span>
+                    </div>
+                    <p class="footer-description">
+                        Providing accurate weather forecasts worldwide
+                    </p>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Data Sources</h3>
+                    <p>Powered by Open-Meteo API</p>
+                    <p>Map data © OpenStreetMap</p>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Last Updated</h3>
+                    <p id="lastUpdateTime">--:--:--</p>
+                    <div class="api-status">
+                        <span class="status-dot online"></span>
+                        <span>API: Connected</span>
+                    </div>
+                </div>
+
+                <div class="footer-section">
+                    <h3>Connect</h3>
+                    <div class="social-links">
+                        <a href="#" class="social-link" aria-label="Twitter">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link" aria-label="GitHub">
+                            <i class="fab fa-github"></i>
+                        </a>
+                        <a href="#" class="social-link" aria-label="LinkedIn">
+                            <i class="fab fa-linkedin"></i>
+                        </a>
+                        <a href="#" class="social-link" aria-label="Feedback">
+                            <i class="fas fa-envelope"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>© 2024 WeatherSphere. All rights reserved.</p>
+                <div class="footer-links">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Cookie Policy</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <div class="spinner-circle"></div>
+            <div class="spinner-circle"></div>
+            <div class="spinner-circle"></div>
+        </div>
+        <p class="loading-text">Loading weather data...</p>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Install Prompt -->
+    <div class="install-prompt" id="installPrompt">
+        <div class="install-content">
+            <i class="fas fa-download"></i>
+            <div class="install-text">
+                <h3>Install WeatherSphere</h3>
+                <p>Add to home screen for quick access</p>
+            </div>
+            <button class="btn btn-primary" id="installBtn">Install</button>
+            <button class="btn btn-text" id="dismissInstall">Not Now</button>
+        </div>
+    </div>
+
+    <!-- Offline Indicator -->
+    <div class="offline-indicator" id="offlineIndicator">
+        <i class="fas fa-wifi-slash"></i>
+        <span>You're offline. Some features may be limited.</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="script.js"></script>
+</body>
+
+</html>
